@@ -583,13 +583,8 @@ pub(crate) async fn run_server(
     let sandbox_index = SandboxIndex::new();
     let sandbox_watch_bus = SandboxWatchBus::new();
     let supervisor_sessions = Arc::new(supervisor_session::SupervisorSessionRegistry::new());
-    let driver_startup = compute::driver_config::DriverStartupContext {
-        file: config_file.as_ref(),
-        guest_tls: guest_tls.as_ref(),
-        gateway_port: config.bind_address.port(),
-        gateway_tls_enabled: config.tls.is_some(),
-        endpoint_overrides: &config.compute_driver_endpoints,
-    };
+    let driver_startup =
+        compute_driver_startup_context(&config, config_file.as_ref(), guest_tls.as_ref());
     let (compute, operator_allowlist) = build_compute_runtime(
         &config,
         driver_startup,
@@ -1205,6 +1200,30 @@ async fn build_compute_runtime(
     Ok((runtime, operator_allowlist))
 }
 
+pub(crate) fn configured_compute_driver_name(startup: &ServerStartupConfig) -> Result<String> {
+    let driver_startup = compute_driver_startup_context(
+        &startup.config,
+        startup.config_file.as_ref(),
+        startup.guest_tls.as_ref(),
+    );
+    configured_compute_driver(&startup.config, driver_startup)
+        .map(|driver| driver.name().to_string())
+}
+
+fn compute_driver_startup_context<'a>(
+    config: &'a Config,
+    config_file: Option<&'a config_file::ConfigFile>,
+    guest_tls: Option<&'a compute::driver_config::GuestTlsPaths>,
+) -> compute::driver_config::DriverStartupContext<'a> {
+    compute::driver_config::DriverStartupContext {
+        file: config_file,
+        guest_tls,
+        gateway_port: config.bind_address.port(),
+        gateway_tls_enabled: config.tls.is_some(),
+        endpoint_overrides: &config.compute_driver_endpoints,
+    }
+}
+
 #[derive(Debug, Clone)]
 enum ConfiguredComputeDriver {
     Builtin(ComputeDriverKind),
@@ -1347,7 +1366,7 @@ mod tests {
         BoundGatewayListener, ConfiguredComputeDriver, ConnectionProtocol, ExtensionKind,
         GatewayListenerScope, MultiplexService, ServerState, TlsAcceptor,
         allow_plaintext_service_http, bind_gateway_listeners, classify_initial_bytes,
-        configured_compute_driver, is_benign_tls_handshake_failure,
+        configured_compute_driver, configured_compute_driver_name, is_benign_tls_handshake_failure,
         kubernetes_sandbox_jwt_expiry_disabled, mint_gateway_extension_credential,
         serve_gateway_listener,
     };
@@ -1858,6 +1877,17 @@ mod tests {
             driver,
             ConfiguredComputeDriver::Builtin(ComputeDriverKind::Docker)
         ));
+    }
+
+    #[test]
+    fn configured_compute_driver_name_uses_effective_driver_resolution() {
+        let startup = crate::ServerStartupConfig {
+            config: Config::new(None).with_compute_drivers([ComputeDriverKind::Podman]),
+            config_file: None,
+            guest_tls: None,
+        };
+
+        assert_eq!(configured_compute_driver_name(&startup).unwrap(), "podman");
     }
 
     #[test]
