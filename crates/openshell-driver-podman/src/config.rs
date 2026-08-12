@@ -185,9 +185,19 @@ pub struct PodmanComputeConfig {
     /// pointing the gateway host at the corporate resolver so validated-IP
     /// CONNECT works in split-horizon networks.
     pub proxy_connect_by_hostname: Option<bool>,
+    /// Minimum accepted sandbox process UID.
+    #[serde(skip, default = "default_min_sandbox_identity")]
+    pub min_sandbox_uid: u32,
+    /// Minimum accepted sandbox process GID.
+    #[serde(skip, default = "default_min_sandbox_identity")]
+    pub min_sandbox_gid: u32,
 }
 
 pub const DEFAULT_HEALTH_CHECK_INTERVAL_SECS: u64 = 10;
+
+const fn default_min_sandbox_identity() -> u32 {
+    openshell_core::config::DEFAULT_MIN_SANDBOX_IDENTITY
+}
 
 impl PodmanComputeConfig {
     /// Returns `true` when all three TLS paths are configured.
@@ -380,6 +390,8 @@ impl Default for PodmanComputeConfig {
             proxy_auth_file: None,
             proxy_auth_allow_insecure: None,
             proxy_connect_by_hostname: None,
+            min_sandbox_uid: default_min_sandbox_identity(),
+            min_sandbox_gid: default_min_sandbox_identity(),
         }
     }
 }
@@ -412,6 +424,8 @@ impl std::fmt::Debug for PodmanComputeConfig {
             .field("proxy_auth_file", &self.proxy_auth_file.is_some())
             .field("proxy_auth_allow_insecure", &self.proxy_auth_allow_insecure)
             .field("proxy_connect_by_hostname", &self.proxy_connect_by_hostname)
+            .field("min_sandbox_uid", &self.min_sandbox_uid)
+            .field("min_sandbox_gid", &self.min_sandbox_gid)
             .finish()
     }
 }
