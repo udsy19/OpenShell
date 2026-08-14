@@ -28,6 +28,12 @@ volume. Stopped managed containers remain visible through list and watch
 reconciliation. Delete remains responsible for removing the container,
 driver-owned secrets, and workspace volume.
 
+Gateway shutdown does not stop running Podman containers. On startup, the
+gateway sends an idempotent `StartSandbox` request for each sandbox whose
+persisted phase requires running compute. This is a no-op for a container that
+survived and recovers a retained container stopped by a Podman machine or
+runtime restart. Explicitly stopped sandboxes are excluded.
+
 ## Architecture
 
 The Podman driver communicates with the Podman daemon over a Unix socket and
