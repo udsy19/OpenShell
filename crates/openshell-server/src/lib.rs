@@ -437,6 +437,7 @@ impl ServerState {
 /// Returns an error if the server fails to start or encounters a fatal error.
 pub(crate) async fn run_server(
     startup: ServerStartupConfig,
+    compute_driver: ConfiguredComputeDriver,
     tracing_log_bus: TracingLogBus,
 ) -> Result<()> {
     let ServerStartupConfig {
@@ -593,6 +594,7 @@ pub(crate) async fn run_server(
     let (compute, operator_allowlist) = build_compute_runtime(
         &config,
         driver_startup,
+        compute_driver,
         store.clone(),
         sandbox_index.clone(),
         sandbox_watch_bus.clone(),
@@ -1089,6 +1091,7 @@ type OperatorAllowlistArc = Option<openshell_driver_kubernetes::OperatorNamespac
 async fn build_compute_runtime(
     config: &Config,
     driver_startup: compute::driver_config::DriverStartupContext<'_>,
+    driver: ConfiguredComputeDriver,
     store: Arc<Store>,
     sandbox_index: SandboxIndex,
     sandbox_watch_bus: SandboxWatchBus,
@@ -1096,7 +1099,6 @@ async fn build_compute_runtime(
     supervisor_sessions: Arc<supervisor_session::SupervisorSessionRegistry>,
     shutdown_rx: watch::Receiver<bool>,
 ) -> Result<(ComputeRuntime, OperatorAllowlistArc)> {
-    let driver = configured_compute_driver(config, driver_startup)?;
     info!(driver = %driver.name(), "Using compute driver");
 
     let (runtime, operator_allowlist) = match driver {
@@ -1206,7 +1208,7 @@ async fn build_compute_runtime(
 }
 
 #[derive(Debug, Clone)]
-enum ConfiguredComputeDriver {
+pub(crate) enum ConfiguredComputeDriver {
     Builtin(ComputeDriverKind),
     Remote { name: String },
 }
@@ -1241,6 +1243,21 @@ fn configured_compute_driver(
             drivers.join(",")
         ))),
     }
+}
+
+pub(crate) fn configured_compute_driver_for_startup(
+    startup: &ServerStartupConfig,
+) -> Result<ConfiguredComputeDriver> {
+    configured_compute_driver(
+        &startup.config,
+        compute::driver_config::DriverStartupContext {
+            file: startup.config_file.as_ref(),
+            guest_tls: startup.guest_tls.as_ref(),
+            gateway_port: startup.config.bind_address.port(),
+            gateway_tls_enabled: startup.config.tls.is_some(),
+            endpoint_overrides: &startup.config.compute_driver_endpoints,
+        },
+    )
 }
 
 fn resolve_configured_compute_driver(
