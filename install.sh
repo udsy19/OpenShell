@@ -658,6 +658,15 @@ local_gateway_endpoint() {
   esac
 }
 
+# Resolve the OpenShell CLI config directory the same way the CLI does: honor
+# XDG_CONFIG_HOME when it is set and non-empty, otherwise fall back to
+# ${TARGET_HOME}/.config. Keeping this in sync with the CLI's XDG lookup
+# ensures the installer looks for gateway entries and client certificates
+# where the `openshell` CLI actually stores them.
+local_gateway_config_dir() {
+  printf '%s/openshell\n' "${XDG_CONFIG_HOME:-${TARGET_HOME}/.config}"
+}
+
 linux_package_method() {
   case "${OPENSHELL_INSTALL_METHOD:-}" in
     snap | deb | rpm)
@@ -1035,7 +1044,7 @@ wait_for_local_gateway_listener() {
   _last_output=""
   _service_failed=0
   _probe_url="$(local_gateway_endpoint)/"
-  _mtls_dir="${TARGET_HOME}/.config/openshell/gateways/openshell/mtls"
+  _mtls_dir="$(local_gateway_config_dir)/gateways/openshell/mtls"
 
   info "waiting for local gateway listener to become reachable..."
   while [ "$_elapsed" -lt "$_timeout" ]; do
@@ -1111,7 +1120,7 @@ remove_local_gateway_registration_from() {
 }
 
 remove_local_gateway_registration() {
-  remove_local_gateway_registration_from "${TARGET_HOME}/.config/openshell"
+  remove_local_gateway_registration_from "$(local_gateway_config_dir)"
 }
 
 remove_snap_gateway_registration() {

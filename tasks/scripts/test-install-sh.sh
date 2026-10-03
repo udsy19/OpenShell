@@ -796,4 +796,46 @@ done
 
 unset -f gh uname linux_package_method
 
+# local_gateway_config_dir must resolve the same directory the openshell CLI
+# uses, so the installer's readiness check and registration cleanup look where
+# the CLI stores gateway entries and client certificates (issue #4042).
+assert_local_gateway_config_dir() {
+  local name=$1
+  local expected=$2
+  local actual
+
+  actual="$(local_gateway_config_dir)"
+  if [ "$actual" != "$expected" ]; then
+    echo "FAIL: ${name}" >&2
+    echo "Expected: ${expected}" >&2
+    echo "Actual:   ${actual}" >&2
+    exit 1
+  fi
+}
+
+(
+  TARGET_HOME="/home/tester"
+  TARGET_USER="tester"
+
+  unset XDG_CONFIG_HOME
+  assert_local_gateway_config_dir \
+    "unset XDG_CONFIG_HOME falls back to HOME/.config" \
+    "/home/tester/.config/openshell"
+
+  export XDG_CONFIG_HOME=""
+  assert_local_gateway_config_dir \
+    "empty XDG_CONFIG_HOME falls back to HOME/.config" \
+    "/home/tester/.config/openshell"
+
+  export XDG_CONFIG_HOME="/custom/xdg"
+  assert_local_gateway_config_dir \
+    "set XDG_CONFIG_HOME is honored" \
+    "/custom/xdg/openshell"
+
+  export XDG_CONFIG_HOME="/custom/xdg config"
+  assert_local_gateway_config_dir \
+    "XDG_CONFIG_HOME with spaces is honored" \
+    "/custom/xdg config/openshell"
+)
+
 echo "install.sh focused tests passed"
